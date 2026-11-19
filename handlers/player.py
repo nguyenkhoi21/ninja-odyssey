@@ -11,7 +11,7 @@ from core.db import (
     push_mail,
     next_mail_id,
 )
-from core import schema, gamedata as gd, rewards, activity, tasks, push
+from core import schema, gamedata as gd, rewards, activity, tasks, push, gm_service
 from core.templates import get_ws_template
 from handlers import common
 
@@ -405,9 +405,28 @@ def use_gift_code(req: dict, session: dict):
     if ctx.error:
         return ctx.error
     p = ctx.player
-    code = str(req.get("giftCode") or "").strip().upper()
-    if not code:
+    raw_code = str(req.get("giftCode") or "").strip()
+    if not raw_code:
         return ctx.err("请输入礼包码")
+
+    handled, popup_counts, _ = gm_service.try_execute_gm_giftcode(ctx.db, p, raw_code)
+    if handled:
+        return ctx.ok(
+            bag=p["bag"],
+            coin=p.get("coin", 0),
+            gem=p.get("gem", 0),
+            actionPoint=p.get("actionPoint", 0),
+            skillPoint=p.get("skillPoint", 0),
+            level=p.get("level", 1),
+            experience=p.get("experience", 0),
+            vip=p.get("vip", {}),
+            team=p.get("team", {}),
+            power=p.get("power", 0),
+            activity={"map": p.get("activity", {}).get("map", {})},
+            _temp=ctx.temp(entityCountMap=popup_counts),
+        )
+
+    code = raw_code.upper()
     used = p.setdefault("usedGiftCodes", [])
     if code in used:
         return ctx.err("礼包码已使用")
@@ -418,7 +437,14 @@ def use_gift_code(req: dict, session: dict):
     counts = rewards.grant_items(p, items)
     schema.recalc_power(p)
     ctx.save()
-    return ctx.ok(bag=p["bag"], _temp=ctx.temp(entityCountMap=counts))
+    return ctx.ok(
+        bag=p["bag"],
+        coin=p.get("coin", 0),
+        gem=p.get("gem", 0),
+        actionPoint=p.get("actionPoint", 0),
+        vip=p.get("vip", {}),
+        _temp=ctx.temp(entityCountMap=counts),
+    )
 
 
 def _gem_cost(kind, times):

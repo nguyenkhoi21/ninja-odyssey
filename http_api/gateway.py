@@ -11,11 +11,12 @@ import urllib.request
 from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler
 
-from core.db import load_db, save_db
+from core.db import load_db, save_db, flush_to_supabase, push_mail, next_mail_id
 from core import session as sess
-from core import push
+from core import push, gm_service, rewards
 from core.templates import get_http_template
 from core.router import dispatch, registered_count
+from http_api.gm_web import render_gm_html
 from core.pomelo_proto import (
     PKG_HANDSHAKE,
     PKG_HANDSHAKE_ACK,
@@ -265,9 +266,20 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-GM-Key")
         self.send_header("Connection", "close")
         self.end_headers()
+
+    def _check_gm_auth(self, parsed) -> bool:
+        expected = os.environ.get("GM_KEY", "").strip()
+        if not expected:
+            return True
+        qs = parse_qs(parsed.query)
+        provided = (self.headers.get("X-GM-Key") or (qs.get("key") or [""])[0]).strip()
+        if provided == expected:
+            return True
+        self._send_json({"code": 401, "msg": "Sai hoặc thiếu GM Key (X-GM-Key)"}, status=401)
+        return False
 
     def do_GET(self):
         if self.headers.get("Upgrade", "").lower() == "websocket":
@@ -301,9 +313,37 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
                 f"<p><b>Registered Users:</b> {len(db.get('users', {}))} | <b>Players:</b> {len(db.get('players', {}))}</p>"
                 f"<p><b>Registered Routes:</b> {registered_count()} explicit + 39 module prefixes</p>"
                 f"<p><b>Supabase Cloud Sync:</b> {'ENABLED' if supa_on else 'LOCAL ONLY'}</p>"
+                "<p><a href='/gm' style='color:#ffb020;font-weight:bold;text-decoration:none;'>"
+                "Mở Bảng Điều Khiển GM (/gm) &rarr;</a></p>"
                 "</body></html>"
             )
             self._send_html(html)
+            return
+
+        if parsed.path in ("/gm", "/gm/"):
+            gm_key_required = bool(os.environ.get("GM_KEY", "").strip())
+            self._send_html(render_gm_html(gm_key_required))
+            return
+
+        if parsed.path == "/gm/api/players":
+            if not self._check_gm_auth(parsed):
+                return
+            db = load_db()
+            self._send_json({"code": 200, "players": gm_service.list_players(db)})
+            return
+
+        if parsed.path == "/gm/api/catalog":
+            if not self._check_gm_auth(parsed):
+                return
+            qs = parse_qs(parsed.query)
+            q = (qs.get("q") or [""])[0]
+            cat = (qs.get("type") or ["all"])[0]
+            try:
+                limit = int((qs.get("limit") or ["80"])[0])
+            except (TypeError, ValueError):
+                limit = 80
+            res = gm_service.search_catalog(query=q, category=cat, limit=limit)
+            self._send_json({"code": 200, **res})
             return
 
         if parsed.path == "/user/clientConfig":
@@ -354,10 +394,136 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
 
         self._send_json({"code": 200})
 
+    def _handle_gm_action(self, db: dict, params: dict):
+        action = str(params.get("action") or "").strip()
+        if action == "flush_db":
+            ok = flush_to_supabase()
+            return 200, {
+                "code": 200,
+                "ok": True,
+                "message": "Đã lưu & đồng bộ lên Supabase!" if ok else "Đã lưu DB cục bộ (chưa cấu hình Supabase hoặc lỗi mạng).",
+            }
+
+        player = gm_service.resolve_player(db, params.get("target"))
+        if player is None:
+            return 404, {"code": 404, "msg": "Không tìm thấy nhân vật (hãy đăng nhập và tạo nhân vật trước)."}
+
+        try:
+            if action == "preset":
+                via_mail = bool(params.get("viaMail"))
+                msg, info, _ = gm_service.apply_preset(db, player, params.get("preset"), via_mail=via_mail)
+                return 200, {
+                    "code": 200,
+                    "ok": True,
+                    "message": msg,
+                    "pushed": info.get("pushed", False),
+                    "player": gm_service.player_brief(db, player),
+                }
+
+            if action == "add_items":
+                via_mail = bool(params.get("viaMail"))
+                title = str(params.get("title") or "GM 福利礼包")
+                body = str(params.get("body") or "来自 GM 的专属福利，请查收！")
+                info, _ = gm_service.add_items(
+                    db, player, params.get("items") or [], via_mail=via_mail, title=title, body=body
+                )
+                return 200, {
+                    "code": 200,
+                    "ok": True,
+                    "message": f"Đã gửi {info.get('itemTypes', 0)} loại vật phẩm cho {player['name']}",
+                    "pushed": info.get("pushed", False),
+                    "player": gm_service.player_brief(db, player),
+                }
+
+            if action == "add_role":
+                rid = params.get("kindId") or params.get("classId")
+                if not rid:
+                    raise ValueError("Thiếu kindId hoặc classId tướng")
+                res = gm_service.add_role(
+                    db,
+                    player,
+                    int(rid),
+                    level=int(params.get("level") or player.get("level") or 1),
+                    star=int(params.get("star") or 5),
+                )
+                return 200, {
+                    "code": 200,
+                    "ok": True,
+                    "message": f"Đã thêm tướng {res['roleName']} ({res['star']}★) vào đội của {player['name']}",
+                    "pushed": res.get("pushed", False),
+                    "player": gm_service.player_brief(db, player),
+                }
+
+            if action == "set_stats":
+                info, _ = gm_service.set_stats(
+                    db,
+                    player,
+                    coin=params.get("coin"),
+                    gem=params.get("gem"),
+                    action_point=params.get("actionPoint"),
+                    skill_point=params.get("skillPoint"),
+                    level=params.get("level"),
+                    vip_level=params.get("vipLevel"),
+                    mode=params.get("mode") or "add",
+                )
+                return 200, {
+                    "code": 200,
+                    "ok": True,
+                    "message": f"Đã cập nhật chỉ số cho {player['name']}",
+                    "pushed": info.get("pushed", False),
+                    "player": info.get("player"),
+                }
+
+            if action == "send_mail":
+                title = str(params.get("title") or "Quà tặng từ GM")
+                body = str(params.get("body") or "")
+                drop_desc = str(params.get("dropDesc") or "").strip()
+                items = rewards.parse_drop_desc(drop_desc) if drop_desc else []
+                if items:
+                    info, _ = gm_service.add_items(db, player, items, via_mail=True, title=title, body=body)
+                    pushed = info.get("pushed", False)
+                else:
+                    mail = {
+                        "_id": next_mail_id(db),
+                        "isSys": True,
+                        "status": 1,
+                        "type": 1,
+                        "senderId": 9999999999,
+                        "senderName": "GM 管理员",
+                        "title": title,
+                        "body": body,
+                        "ctime": int(time.time() * 1000),
+                        "expireTime": int(time.time() * 1000) + 604800000,
+                        "dropList": [],
+                        "isReceived": False,
+                    }
+                    push_mail(db, player["id"], mail)
+                    save_db(db)
+                    pushed = push.new_mail(player["id"], mail) if push.is_online(player["id"]) else False
+                return 200, {
+                    "code": 200,
+                    "ok": True,
+                    "message": f"Đã gửi thư hệ thống cho {player['name']} ({len(items)} loại vật phẩm)",
+                    "pushed": pushed,
+                    "player": gm_service.player_brief(db, player),
+                }
+
+            return 400, {"code": 400, "msg": f"Action GM không hợp lệ: {action}"}
+        except ValueError as e:
+            return 400, {"code": 400, "msg": str(e)}
+
     def do_POST(self):
         parsed = urlparse(self.path)
         params = self._read_body_params()
         db = load_db()
+
+        if parsed.path == "/gm/api/action":
+            if not self._check_gm_auth(parsed):
+                return
+            status_code, res = self._handle_gm_action(db, params if isinstance(params, dict) else {})
+            self._log("HTTP_GM", parsed.path, params, res)
+            self._send_json(res, status=status_code)
+            return
 
         if parsed.path == "/sdk/verifyToken":
             name = params.get("userId") or "local_user"
