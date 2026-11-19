@@ -587,6 +587,15 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
+        if parsed.path == "/user/reportClientError":
+            pid = params.get("playerId", 0)
+            msg = params.get("msg", "")
+            print(f"[CLIENT_ERROR] playerId={pid} msg={msg}", flush=True)
+            res = {"code": 200}
+            self._log("HTTP_POST", parsed.path, params, res)
+            self._send_json(res)
+            return
+
         res = {"code": 200}
         self._log("HTTP_POST", parsed.path, params, res)
         self._send_json(res)

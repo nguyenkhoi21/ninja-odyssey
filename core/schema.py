@@ -87,9 +87,6 @@ def make_skills(kind_id: int, level: int):
     skills = {}
     for sid in row.get("skillIds") or []:
         skills[str(sid)] = {"kindId": sid, "level": max(1, level)}
-    init_skill = row.get("initSkillId")
-    if init_skill:
-        skills[str(init_skill)] = {"kindId": init_skill, "level": max(1, level)}
     return skills
 
 
@@ -148,6 +145,22 @@ def ensure_role_fields(role: dict):
 
     if not isinstance(role.get("skills"), dict) or not role["skills"]:
         role["skills"] = defaults["skills"]
+    else:
+        role_row = gd.role(kind_id) or {}
+        init_sid = role_row.get("initSkillId")
+        init_sid_str = str(init_sid) if init_sid is not None else None
+        cleaned = {}
+        for sk_key, sk_val in role["skills"].items():
+            if not isinstance(sk_val, dict):
+                continue
+            sid = sk_val.get("kindId")
+            if init_sid_str and (str(sk_key) == init_sid_str or str(sid) == init_sid_str):
+                continue
+            fskill = gd.find("fightSkillData", "kindId", sid) if sid is not None else None
+            if not fskill or fskill.get("effect") is None:
+                continue
+            cleaned[str(sk_key)] = sk_val
+        role["skills"] = cleaned or defaults["skills"]
 
     attr = role.get("attr")
     if not isinstance(attr, dict):
@@ -356,15 +369,29 @@ def make_default_player(pid: int, uid: int, name: str, user_name: str = ""):
         "endless": {
             "maxFloor": 1,
             "nowFloor": 1,
-            "topPassId": 40001,
+            "topPassId": 0,
             "otherTopPassIdMap": {},
             "pursuitTeamIndexsMap": {},
             "pursuitShipIndexsMap": {},
             "resetTimesMap": {},
         },
         "shop": {"goodsMap": {}, "refreshTimesMap": {}, "hideRoleClassIds": []},
-        "task": {"main": {}, "daily": {}, "receivedIds": [], "receivedPointMap": {}},
-        "activity": {"map": _empty_activity_map(), "received": {}, "dream": {"point": 0, "curPos": 0, "logs": []}},
+        "task": {
+            "main": {},
+            "daily": {},
+            "achievement": {},
+            "dailyActivePoint": 0,
+            "weeklyActivePoint": 0,
+            "activePoint": 0,
+            "receivedIds": [],
+            "receivedPointMap": {"daily": {}, "weekly": {}},
+        },
+        "activity": {
+            "map": _empty_activity_map(),
+            "received": {},
+            "dream": {"point": 0, "curPos": 0, "logs": []},
+            "scorePointInfoMap": {},
+        },
         "island": {
             "attackerIds": [],
             "resources": {},
@@ -438,6 +465,18 @@ def ensure_player_fields(player: dict):
 
     player["extra"]["serverTime"] = now
     player["extra"]["serverTimeStr"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    endless = player.setdefault("endless", {})
+    if int(endless.get("topPassId") or 0) >= 40000:
+        endless["topPassId"] = 0
+
+    player.setdefault("activity", {}).setdefault("scorePointInfoMap", {})
+    rpm = player.setdefault("task", {}).setdefault("receivedPointMap", {})
+    if not isinstance(rpm, dict):
+        rpm = {}
+        player["task"]["receivedPointMap"] = rpm
+    rpm.setdefault("daily", {})
+    rpm.setdefault("weekly", {})
 
     roles = player.get("team", {}).get("roles", {})
     for role in roles.values():

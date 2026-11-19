@@ -22,11 +22,22 @@ def _rows_of_group(group_id):
     )
 
 
+def _rows_of_type(task_type):
+    return sorted(
+        (r for r in gd.table("taskData") if isinstance(r, dict) and r.get("type") == task_type),
+        key=lambda r: (r.get("rankId") or 0, r.get("kindId") or 0),
+    )
+
+
 def _show_text(task_row, player):
     """Progress text like '1/3' derived from the task's require map."""
     require = task_row.get("require") or {}
+    if "minHours" in require or "maxHours" in require:
+        return "0/1"
     parts = []
     for key, need in require.items():
+        if not isinstance(need, (int, float)):
+            continue
         have = _require_value(player, key)
         parts.append(f"{min(have, need)}/{need}")
     return ",".join(parts) if parts else "0/1"
@@ -48,7 +59,14 @@ def _is_complete(task_row, player):
     require = task_row.get("require") or {}
     if not require:
         return False
+    if "minHours" in require or "maxHours" in require:
+        now_hour = time.localtime().tm_hour
+        min_h = int(require.get("minHours") or 0)
+        max_h = int(require.get("maxHours") or 24)
+        return min_h <= now_hour < max_h
     for key, need in require.items():
+        if not isinstance(need, (int, float)):
+            return False
         if _require_value(player, key) < need:
             return False
     return True
@@ -90,9 +108,15 @@ def ensure_main_task(player):
 
 def ensure_daily_tasks(player):
     task = player.setdefault("task", {})
+    task.setdefault("achievement", {})
+    task.setdefault("dailyActivePoint", 0)
+    task.setdefault("weeklyActivePoint", 0)
+    rpm = task.setdefault("receivedPointMap", {})
+    rpm.setdefault("daily", {})
+    rpm.setdefault("weekly", {})
     daily = task.setdefault("daily", {})
     received = set(str(x) for x in task.get("receivedIds") or [])
-    for row in _rows_of_group(DAILY_GROUP):
+    for row in _rows_of_type(DAILY_GROUP):
         tid = row.get("kindId")
         key = str(tid)
         if key in daily:

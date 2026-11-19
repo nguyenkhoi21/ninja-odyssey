@@ -17,11 +17,18 @@ def endless_pass(req: dict, session: dict):
     if ctx.error:
         return ctx.error
     p = ctx.player
-    endless = p.setdefault("endless", {"maxFloor": 1, "nowFloor": 1, "topPassId": 40001})
-    smap_id = int(req.get("smapId") or endless.get("topPassId") or 40001)
-    endless["nowFloor"] = int(endless.get("nowFloor") or 1) + 1
+    endless = p.setdefault("endless", {"maxFloor": 1, "nowFloor": 1, "topPassId": 0})
+    top = int(endless.get("topPassId") or 0)
+    if top >= 40000:
+        top = 0
+    smap_id = req.get("smapId")
+    row = gd.smap(int(smap_id)) if smap_id else None
+    floor_no = int(row.get("no") or 0) if row else (top + 1)
+    if floor_no <= 0:
+        floor_no = top + 1
+    endless["nowFloor"] = max(int(endless.get("nowFloor") or 1), floor_no) + 1
     endless["maxFloor"] = max(int(endless.get("maxFloor") or 1), endless["nowFloor"])
-    endless["topPassId"] = max(int(endless.get("topPassId") or 40001), smap_id + 1)
+    endless["topPassId"] = max(top, floor_no)
     counts = rewards.grant_items(p, [{"entityId": 60101, "count": 1}, {"entityId": 101, "count": 1000}])
     ctx.save()
     return ctx.ok(endless=endless, bag=p["bag"], coin=p["coin"], _temp={"isWin": True, "entityCountMap": counts})
@@ -33,9 +40,13 @@ def endless_skip(req: dict, session: dict):
     if ctx.error:
         return ctx.error
     p = ctx.player
-    endless = p.setdefault("endless", {"maxFloor": 1, "nowFloor": 1, "topPassId": 40001})
+    endless = p.setdefault("endless", {"maxFloor": 1, "nowFloor": 1, "topPassId": 0})
+    top = int(endless.get("topPassId") or 0)
+    if top >= 40000:
+        top = 0
     endless["nowFloor"] = int(endless.get("nowFloor") or 1) + 5
     endless["maxFloor"] = max(int(endless.get("maxFloor") or 1), endless["nowFloor"])
+    endless["topPassId"] = max(top, endless["maxFloor"] - 1)
     vip = p.setdefault("vip", {})
     vip["endlessSkipTimes"] = int(vip.get("endlessSkipTimes") or 0) + 1
     counts = rewards.grant_items(p, [{"entityId": 60101, "count": 5}, {"entityId": 101, "count": 10000}])

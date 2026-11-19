@@ -9,7 +9,7 @@ from core.db import (
     next_mail_id,
 )
 from core import session as sess
-from core import push
+from core import push, activity, tasks
 from core.schema import recalc_power
 
 
@@ -87,6 +87,13 @@ def _starter_mail(db, player):
         pass
 
 
+def _prepare_player(player):
+    """Ensure activities and tasks are populated before sending player snapshot."""
+    activity.refresh_activity(player)
+    tasks.ensure_main_task(player)
+    tasks.ensure_daily_tasks(player)
+
+
 @route("connector.playerHandler.createPlayer")
 def create_player(req: dict, session: dict):
     db = load_db()
@@ -113,6 +120,7 @@ def create_player(req: dict, session: dict):
     player["name"] = name
     db["players"][str(pid)] = player
     _starter_mail(db, player)
+    _prepare_player(player)
     recalc_power(player)
     save_db(db)
 
@@ -148,6 +156,7 @@ def player_entry(req: dict, session: dict):
     session["isReconnect"] = bool(req.get("isReconnect"))
 
     _recover_points(player)
+    _prepare_player(player)
     recalc_power(player)
     save_db(db)
 
