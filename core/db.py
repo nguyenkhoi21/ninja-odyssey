@@ -142,7 +142,10 @@ def load_db_from_supabase():
         if status == 200 and isinstance(rows, list) and rows:
             cloud_data = rows[0].get("data")
             if isinstance(cloud_data, dict):
-                for key in ("users", "players", "guilds", "rank", "chat", "reports", "videos"):
+                for key in (
+                    "users", "players", "guilds", "rank", "chat", "reports", "videos",
+                    "tokens", "activity_state", "guild_battle", "world_boss", "seasons",
+                ):
                     if isinstance(cloud_data.get(key), dict):
                         db.setdefault(key, {}).update(cloud_data[key])
                 for num_k in ("next_uid", "next_pid", "next_guild_id", "mail_seq", "guild_seq"):

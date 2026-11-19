@@ -206,6 +206,21 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             with GatewayConfig.ws_lock:
                 GatewayConfig.active_ws = max(0, GatewayConfig.active_ws - 1)
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Connection", "close")
+        self.end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Connection", "close")
+        self.end_headers()
+
     def do_GET(self):
         if self.headers.get("Upgrade", "").lower() == "websocket":
             self._handle_websocket_upgrade()
