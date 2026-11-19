@@ -206,11 +206,63 @@ def _empty_activity_map():
     }
 
 
+def smap_coords(smap_id: int) -> tuple[str, str, str]:
+    """Resolve 3-level client stage key coordinates (mapType, bmapId, smapId)."""
+    import core.gamedata as gd
+
+    sid = int(smap_id or 10101)
+    srow = gd.smap(sid) or {}
+    bmap_id = int(srow.get("bmapId") or (sid // 100) or 101)
+    brow = gd.bmap(bmap_id) or {}
+    mtype = int(brow.get("type") or (bmap_id // 100) or 1)
+    return str(mtype), str(bmap_id), str(sid)
+
+
+def _migrate_nested_smap_dict(raw_map) -> dict:
+    """Normalize flat or 3-level stage progress maps into {type: {bmapId: {smapId: int}}}."""
+    if not isinstance(raw_map, dict):
+        return {}
+    nested = {}
+    for k, v in raw_map.items():
+        if isinstance(v, dict):
+            dst_t = nested.setdefault(str(k), {})
+            for bk, bv in v.items():
+                if isinstance(bv, dict):
+                    dst_b = dst_t.setdefault(str(bk), {})
+                    for sk, sv in bv.items():
+                        dst_b[str(sk)] = int(sv or 0)
+        else:
+            try:
+                sid = int(k)
+            except (TypeError, ValueError):
+                continue
+            mtype, bid, s_sid = smap_coords(sid)
+            nested.setdefault(mtype, {}).setdefault(bid, {})[s_sid] = int(v or 0)
+    return nested
+
+
+def _sum_nested_stars(star_map: dict) -> int:
+    total = 0
+    for by_bmap in (star_map or {}).values():
+        if not isinstance(by_bmap, dict):
+            continue
+        for by_smap in by_bmap.values():
+            if isinstance(by_smap, dict):
+                total += sum(int(v or 0) for v in by_smap.values())
+    return total
+
+
+def _default_goods_list() -> dict:
+    from core import activity
+
+    return activity.ensure_official_goods({})
+
+
 def make_default_player(pid: int, uid: int, name: str, user_name: str = ""):
     now = int(time.time() * 1000)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    starter_kind = 100101
+    starter_kind = 100301
     starter = make_role(starter_kind, level=1, star=1)
     vip_row = gd.vip(0) or {}
 
@@ -304,9 +356,9 @@ def make_default_player(pid: int, uid: int, name: str, user_name: str = ""):
             "friendships": {},
         },
         "friend": {"infoMap": {}, "list": [], "actionPointReceiveTimes": 0, "count": 0},
-        "smapStarMap": {},
+        "smapStarMap": {"1": {"101": {}}},
         "bmapBoxReceivedMap": {},
-        "smapTimesMap": {},
+        "smapTimesMap": {"1": {"101": {}}},
         "smap": {"nowId": 10101, "maxId": 10101},
         "point": {
             "nextCoinFreeTime": 0,
@@ -421,8 +473,8 @@ def make_default_player(pid: int, uid: int, name: str, user_name: str = ""):
             "openDays": 1,
             "crossSid": 1,
             "mails": [],
-            "goodsList": {},
-            "banner": {"list": []},
+            "goodsList": _default_goods_list(),
+            "banner": None,
             "guildBattle": {},
             "newGuildBattle": {},
             "activityGuildBattle": {},
@@ -463,8 +515,23 @@ def ensure_player_fields(player: dict):
         elif isinstance(value, dict) and isinstance(player[key], dict):
             _merge_dict_defaults(player[key], value)
 
+    from core import activity
+
     player["extra"]["serverTime"] = now
     player["extra"]["serverTimeStr"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    activity.ensure_official_goods(player)
+
+    smap_stars = _migrate_nested_smap_dict(player.get("smapStarMap"))
+    smap_stars.setdefault("1", {}).setdefault("101", {})
+    player["smapStarMap"] = smap_stars
+    player["starCount"] = _sum_nested_stars(smap_stars)
+
+    smap_times = _migrate_nested_smap_dict(player.get("smapTimesMap"))
+    smap_times.setdefault("1", {}).setdefault("101", {})
+    player["smapTimesMap"] = smap_times
+
+    vip = player.setdefault("vip", {})
+    vip["resetSmapTimesTimesMap"] = _migrate_nested_smap_dict(vip.get("resetSmapTimesTimesMap"))
 
     endless = player.setdefault("endless", {})
     if int(endless.get("topPassId") or 0) >= 40000:
@@ -479,6 +546,15 @@ def ensure_player_fields(player: dict):
     rpm.setdefault("weekly", {})
 
     roles = player.get("team", {}).get("roles", {})
+    if (
+        player["starCount"] == 0
+        and len(roles) == 1
+        and "1" in roles
+        and int(roles["1"].get("kindId") or 0) == 100101
+        and int(roles["1"].get("level") or 1) == 1
+    ):
+        roles["1"] = make_role(100301, level=1, star=1)
+
     for role in roles.values():
         if isinstance(role, dict):
             ensure_role_fields(role)
@@ -488,6 +564,7 @@ def ensure_player_fields(player: dict):
     if not isinstance(indexs, list) or len(indexs) != 5:
         filled = [k for k in roles][:5]
         team["indexs"] = (filled + ["0"] * 5)[:5]
+    player.pop("_lastNewRoles", None)
     recalc_power(player)
     return player
 

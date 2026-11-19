@@ -70,7 +70,7 @@ def inc_online_time(req: dict, session: dict):
     p.setdefault("activityReach", {})["onlineSeconds"] = player_sec
     activity.refresh_activity(p)
     ctx.save()
-    return ctx.ok(onlineTime=p["onlineTime"])
+    return ctx.ok()
 
 
 @route("logic.playerHandler.rename")
@@ -349,27 +349,62 @@ def receive_task_active_award(req: dict, session: dict):
     )
 
 
+def _claim_activity_pairs(ctx, p: dict, pairs: list, strict_single: bool = False):
+    """Shared claim path for receiveActivityAward (scalar/list) and receiveActivityAward2."""
+    from core import tasks
+
+    items = []
+    claimed_names = []
+    for name, idx in pairs:
+        desc, err = activity.claim_activity(p, name, idx)
+        if err:
+            if strict_single:
+                return ctx.err(err)
+            continue
+        items.extend(rewards.parse_drop_desc(desc or ""))
+        claimed_names.append(str(name))
+    if not claimed_names:
+        return ctx.err("没有可领取的奖励")
+
+    p.pop("_lastNewRoles", None)
+    counts = rewards.grant_items(p, items)
+    new_roles = p.pop("_lastNewRoles", None)
+    tasks.ensure_main_task(p)
+    activity.refresh_activity(p)
+    schema.recalc_power(p)
+    ctx.save()
+
+    act_map = (p.get("activity") or {}).get("map") or {}
+    updated_map = {n: act_map[n] for n in dict.fromkeys(claimed_names) if n in act_map}
+    resp = dict(
+        bag=p["bag"],
+        gem=p.get("gem", 0),
+        coin=p.get("coin", 0),
+        activity={"map": updated_map},
+        _temp=ctx.temp(entityCountMap=counts),
+    )
+    if new_roles:
+        resp["team"] = {"roles": new_roles}
+    return ctx.ok(**resp)
+
+
 @route("logic.playerHandler.receiveActivityAward")
 def receive_activity_award(req: dict, session: dict):
     ctx = common.get(session)
     if ctx.error:
         return ctx.error
     p = _prepare(ctx.player)
-    name = req.get("activityName")
-    idx = req.get("rewardIdx")
-    if not name:
+    name_arg = req.get("activityName")
+    idx_arg = req.get("rewardIdx")
+    if isinstance(name_arg, list):
+        names = name_arg
+        idxs = idx_arg if isinstance(idx_arg, list) else [idx_arg] * len(names)
+        if not names or len(names) != len(idxs):
+            return ctx.err("参数错误")
+        return _claim_activity_pairs(ctx, p, list(zip(names, idxs)), strict_single=False)
+    if not name_arg:
         return ctx.err("参数错误")
-    desc, err = activity.claim_activity(p, name, idx)
-    if err:
-        return ctx.err(err)
-    items = rewards.parse_drop_desc(desc or "")
-    counts = rewards.grant_items(p, items)
-    schema.recalc_power(p)
-    ctx.save()
-    return ctx.ok(
-        bag=p["bag"], activity={"map": p["activity"]["map"]},
-        _temp=ctx.temp(entityCountMap=counts),
-    )
+    return _claim_activity_pairs(ctx, p, [(name_arg, idx_arg)], strict_single=True)
 
 
 @route("logic.playerHandler.receiveActivityAward2")
@@ -380,25 +415,9 @@ def receive_activity_award2(req: dict, session: dict):
     p = _prepare(ctx.player)
     names = req.get("activityNames") or []
     idxs = req.get("rewardIdxs") or []
-    if not isinstance(names, list) or not isinstance(idxs, list):
+    if not isinstance(names, list) or not isinstance(idxs, list) or not names:
         return ctx.err("参数错误")
-    items = []
-    claimed = 0
-    for name, idx in zip(names, idxs):
-        desc, err = activity.claim_activity(p, name, idx)
-        if err:
-            continue
-        items.extend(rewards.parse_drop_desc(desc or ""))
-        claimed += 1
-    if not claimed:
-        return ctx.err("没有可领取的奖励")
-    counts = rewards.grant_items(p, items)
-    schema.recalc_power(p)
-    ctx.save()
-    return ctx.ok(
-        bag=p["bag"], coin=p.get("coin", 0), activity={"map": p["activity"]["map"]},
-        _temp=ctx.temp(entityCountMap=counts),
-    )
+    return _claim_activity_pairs(ctx, p, list(zip(names, idxs)), strict_single=False)
 
 
 @route("logic.playerHandler.useGiftCode")
@@ -722,30 +741,129 @@ def send_chat(req: dict, session: dict):
     return ctx.ok(_temp=ctx.temp())
 
 
+_CARD_EXPIRE_DAYS = (
+    ("isWeekCard", "weekCardExpire", 7),
+    ("isMonthCard", "monthCardExpire", 30),
+    ("isBigMonthCard", "bigMonthCardExpire", 30),
+    ("isYearCard", "yearCardExpire", 365),
+    ("isDailyGiftPackCard", "dailyGiftPackCardExpire", 6),
+)
+
+
+def _deduct_vouchers(p: dict, need_point: int) -> tuple[bool, list]:
+    """Deduct need_point from bag item kindId=2 vouchers or topUpPoint. Returns (ok, touched_slots)."""
+    if need_point <= 0:
+        return True, []
+    import time
+    from core.db import remove_item_from_bag
+
+    now_ms = int(time.time() * 1000)
+    items = (p.get("bag") or {}).get("items") or {}
+    slots = [
+        (idx, int(it.get("count") or 0))
+        for idx, it in items.items()
+        if isinstance(it, dict)
+        and int(it.get("kindId") or 0) == 2
+        and int(it.get("count") or 0) > 0
+        and (not it.get("expireTime") or int(it["expireTime"]) > now_ms)
+    ]
+    if sum(c for _, c in slots) >= need_point:
+        rem = need_point
+        touched = []
+        for idx, cnt in slots:
+            if rem <= 0:
+                break
+            take = min(cnt, rem)
+            remove_item_from_bag(p, idx, take)
+            touched.append(idx)
+            rem -= take
+        return True, touched
+
+    top_up_pt = int(p.get("topUpPoint") or 0)
+    if top_up_pt >= need_point:
+        p["topUpPoint"] = top_up_pt - need_point
+        return True, []
+    return False, []
+
+
 @route("logic.playerHandler.costTopUpPoint")
 def cost_top_up_point(req: dict, session: dict):
     ctx = common.get(session)
     if ctx.error:
         return ctx.error
-    p = ctx.player
-    goods_id = str(req.get("goodsId") or "")
-    goods = (p.get("extra", {}).get("goodsList") or {}).get(goods_id) or {}
-    gem = int(goods.get("getTicket") or 0) or 6480
-    money = int(goods.get("price") or 0) or 648
+    import time
 
-    p["topUpPoint"] = int(p.get("topUpPoint") or 0) + money
+    p = _prepare(ctx.player)
+    goods_id = str(req.get("goodsId") or "")
+    goods_map = activity.ensure_official_goods(p)
+    goods = goods_map.get(goods_id) or {}
+    if not goods:
+        return ctx.err("商品不存在")
+
+    need_point = int(goods.get("needPoint") or goods.get("price") or 0)
+    ok, touched_slots = _deduct_vouchers(p, need_point)
+    if not ok:
+        return ctx.err("代金券不足")
+
+    money = int(goods.get("price") or need_point or 0)
+    gem_gain = int(goods.get("gem") or 0) + int(goods.get("gift") or 0)
+    vip_exp = int(goods.get("vipExp") or goods.get("reachGem") or goods.get("gem") or need_point * 10)
+    if gem_gain > 0:
+        p["gem"] = int(p.get("gem") or 0) + gem_gain
+
     p["dailyTopUpMoney"] = int(p.get("dailyTopUpMoney") or 0) + money
     vip = p.setdefault("vip", {})
     vip["topUpMoney"] = int(vip.get("topUpMoney") or 0) + money
-    vip["topUpGem"] = int(vip.get("topUpGem") or 0) + gem
-    _, bag = add_item_to_bag(p, 2, gem)
+    vip["topUpGem"] = int(vip.get("topUpGem") or 0) + vip_exp
+
+    for bmap_key in ("buyGoodsTimesMap", "dailyBuyGoodsTimesMap", "weeklyBuyGoodsTimesMap"):
+        bm = p.setdefault(bmap_key, {})
+        bm[goods_id] = int(bm.get(goods_id) or 0) + 1
+
+    now_ms = int(time.time() * 1000)
+    card_updates = {}
+    for flag_key, exp_key, days in _CARD_EXPIRE_DAYS:
+        if goods.get(flag_key):
+            base = max(now_ms, int(p.get(exp_key) or 0))
+            p[exp_key] = base + days * 86400000
+            card_updates[exp_key] = p[exp_key]
+
+    auto_items = activity.auto_receive_for_goods(p, goods_id)
+    auto_counts = {}
+    new_roles = None
+    if auto_items:
+        p.pop("_lastNewRoles", None)
+        auto_counts = rewards.grant_items(p, auto_items)
+        new_roles = p.pop("_lastNewRoles", None)
+
     _refresh_vip(p)
+    activity.refresh_activity(p)
+    schema.recalc_power(p)
     ctx.save()
-    return ctx.ok(
-        bag=bag, dailyTopUpMoney=p["dailyTopUpMoney"],
-        vip={"topUpMoney": vip["topUpMoney"], "level": vip["level"]},
-        _temp=ctx.temp(),
+
+    bag_items = p["bag"].get("items", {})
+    bag_out = (
+        {**p["bag"], "items": {**bag_items, **{k: None for k in touched_slots if k not in bag_items}}}
+        if touched_slots
+        else p["bag"]
     )
+    resp = dict(
+        bag=bag_out,
+        gem=p.get("gem", 0),
+        coin=p.get("coin", 0),
+        dailyTopUpMoney=p["dailyTopUpMoney"],
+        topUpPoint=p.get("topUpPoint", 0),
+        buyGoodsTimesMap=p["buyGoodsTimesMap"],
+        dailyBuyGoodsTimesMap=p["dailyBuyGoodsTimesMap"],
+        weeklyBuyGoodsTimesMap=p["weeklyBuyGoodsTimesMap"],
+        vip=vip,
+        activity={"map": p["activity"]["map"]},
+        **card_updates,
+        _temp=ctx.temp(entityCountMap=auto_counts),
+    )
+    if new_roles:
+        resp["team"] = {"roles": new_roles}
+    return ctx.ok(**resp)
 
 
 def _refresh_vip(p):
@@ -767,18 +885,8 @@ def top_up_goods_list(req: dict, session: dict):
     ctx = common.get(session)
     if ctx.error:
         return ctx.error
-    extra = ctx.player.setdefault("extra", {})
-    goods = extra.setdefault("goodsList", {})
-    if not goods:
-        for i, (price, ticket) in enumerate([(6, 60), (30, 300), (98, 980), (198, 1980), (328, 3280), (648, 6480)], 1):
-            goods[str(1000 + i)] = {
-                "id": 1000 + i, "name": f"{ticket}钻石", "imgId": i,
-                "price": price, "show": f"{price}元", "getTicket": ticket,
-                "firstGiftRate": 1 if i == 1 else 0, "isFirstDouble": 1 if i <= 2 else 0,
-                "isRecommend": i == 3, "dailyBuyMaxTimes": 0, "weeklyBuyMaxTimes": 0,
-                "showNeedTopUpMoney": 0, "isNoUsePoint": 0,
-            }
-        ctx.save()
+    goods = activity.ensure_official_goods(ctx.player)
+    ctx.save()
     return ctx.ok(extra={"goodsList": goods})
 
 
