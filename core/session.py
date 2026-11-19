@@ -78,6 +78,40 @@ def login(db, name, password="", server_id=1):
     return res, user
 
 
+def register(db, name, password="", server_id=1, account_id=""):
+    """Explicit account registration for built-in loginPanel; returns (result_dict, user_dict)."""
+    name = (name or "").strip()
+    if not name:
+        return {"code": 500, "msg": "账号不能为空"}, None
+    users = db.setdefault("users", {})
+    if name in users:
+        return {"code": 500, "msg": "账号已存在"}, None
+    uid = db.get("next_uid", 55924)
+    db["next_uid"] = uid + 1
+    now = _now_ms()
+    user = {
+        "uid": uid,
+        "name": name,
+        "password": password or "",
+        "accountId": str(account_id or uid),
+        "serverId": server_id or 1,
+        "ctime": now,
+        "atime": now,
+    }
+    users[name] = user
+    token = issue_token(db, uid, user["accountId"])
+    res = {
+        "code": 200,
+        "token": token,
+        "uid": uid,
+        "accountId": user["accountId"],
+        "atime": now,
+        "ctime": now,
+        "loginIp": "127.0.0.1",
+    }
+    return res, user
+
+
 def bind_uid(session, uid):
     session["uid"] = uid
 

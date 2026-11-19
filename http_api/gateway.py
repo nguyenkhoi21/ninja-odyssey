@@ -1,10 +1,13 @@
 import os
+import re
+import copy
 import json
 import time
 import base64
 import struct
 import hashlib
 import threading
+import urllib.request
 from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler
 
@@ -44,6 +47,51 @@ class GatewayConfig:
     traffic_logger = None
     active_ws = 0
     ws_lock = threading.Lock()
+
+
+_OFFICIAL_HTTP_BASE = "http://hykp2-yiwei.miaomuxian.cn:20003"
+_OFFICIAL_STATIC_BASE = "http://hykp2-yiwei.miaomuxian.cn:20001"
+_OFFICIAL_CACHE = {}
+_OFFICIAL_CACHE_LOCK = threading.Lock()
+
+
+def _strip_force_update(data):
+    if isinstance(data, dict):
+        data = dict(data)
+        data.pop("forceUpdate", None)
+    return data
+
+
+def _strip_language_prefix(data):
+    if isinstance(data, list):
+        return [
+            p[9:] if isinstance(p, str) and p.startswith("/language/") else p
+            for p in data
+        ]
+    return data
+
+
+def _fetch_official_cached(cache_key: str, url: str, fallback, ttl: int = 300, transform=None):
+    now = time.time()
+    with _OFFICIAL_CACHE_LOCK:
+        cached = _OFFICIAL_CACHE.get(cache_key)
+        if cached and now < cached[0]:
+            return copy.deepcopy(cached[1])
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+        data = json.loads(raw)
+        if transform is not None:
+            data = transform(data)
+        with _OFFICIAL_CACHE_LOCK:
+            _OFFICIAL_CACHE[cache_key] = (now + ttl, data)
+        return copy.deepcopy(data)
+    except Exception:
+        with _OFFICIAL_CACHE_LOCK:
+            if cache_key in _OFFICIAL_CACHE:
+                return copy.deepcopy(_OFFICIAL_CACHE[cache_key][1])
+        return copy.deepcopy(fallback)
 
 
 def _recv_exact(conn, n: int):
@@ -259,25 +307,48 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/user/clientConfig":
-            res = get_http_template("/user/clientConfig", {
+            qs = parse_qs(parsed.query)
+            platform = re.sub(r"[^a-zA-Z0-9_-]", "", (qs.get("platform") or ["android"])[0]) or "android"
+            fallback = get_http_template("/user/clientConfig", {
                 "inReviewPackageInfos": [],
                 "runScriptInfo": {
                     "script": "buildExt.isHideStarSign = false;buildExt.isHideStarSignMap = false;"
                 },
             })
+            res = _fetch_official_cached(
+                f"clientConfig:{platform}",
+                f"{_OFFICIAL_HTTP_BASE}/user/clientConfig?platform={platform}",
+                fallback,
+                ttl=300,
+                transform=_strip_force_update,
+            )
             self._log("HTTP_GET", parsed.path, parsed.query, res)
             self._send_json(res)
             return
 
         if parsed.path == "/notice.json":
-            res = get_http_template("/notice.json", [])
+            fallback = get_http_template("/notice.json", [])
+            res = _fetch_official_cached(
+                "notice.json",
+                f"{_OFFICIAL_STATIC_BASE}/notice.json",
+                fallback,
+                ttl=300,
+            )
             self._log("HTTP_GET", parsed.path, parsed.query, res)
             self._send_json(res)
             return
 
         if parsed.path == "/user/languageFiles":
-            res = []
-            self._log("HTTP_GET", parsed.path, parsed.query, res)
+            qs = parse_qs(parsed.query)
+            lang = re.sub(r"[^a-zA-Z0-9_-]", "", (qs.get("language") or ["vi"])[0]) or "vi"
+            res = _fetch_official_cached(
+                f"languageFiles:{lang}",
+                f"{_OFFICIAL_HTTP_BASE}/user/languageFiles?language={lang}",
+                [],
+                ttl=300,
+                transform=_strip_language_prefix,
+            )
+            self._log("HTTP_GET", parsed.path, parsed.query, f"{len(res) if isinstance(res, list) else 0} files")
             self._send_json(res)
             return
 
@@ -295,7 +366,20 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
-        if parsed.path in ("/user/login", "/user/register"):
+        if parsed.path == "/user/register":
+            name = params.get("name") or params.get("userName") or ""
+            password = params.get("password", "")
+            server_id = int(params.get("serverId") or 1)
+            account_id = params.get("accountId", "")
+            res, user = sess.register(db, name, password, server_id, account_id)
+            if user is not None:
+                res["userName"] = user["name"]
+                save_db(db)
+            self._log("HTTP_POST", parsed.path, params, res)
+            self._send_json(res)
+            return
+
+        if parsed.path == "/user/login":
             name = params.get("name") or params.get("userName") or "player1"
             password = params.get("password", "")
             server_id = int(params.get("serverId") or 1)
@@ -327,7 +411,7 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
                     {
                         "serverId": 1,
                         "oldServerId": 1,
-                        "name": "S1 Local Private",
+                        "name": "S1 Ninja Odyssey",
                         "gateHost": GatewayConfig.public_host,
                         "gatePort": GatewayConfig.gate_port,
                     }
