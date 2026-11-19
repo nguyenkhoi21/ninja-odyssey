@@ -33,7 +33,7 @@ def _daily_reset(player):
     player["dailyTopUpMoney"] = 0
     task = player.setdefault("task", {})
     task["daily"] = {}
-    task["receivedPointMap"] = {}
+    task["receivedPointMap"] = {"daily": {}, "weekly": {}}
     player.setdefault("activity", {})["received"] = {}
     arena = player.setdefault("arena", {})
     arena["challengeTimes"] = 0
@@ -84,14 +84,16 @@ def rename(req: dict, session: dict):
     from core import session as sess
     if sess.name_taken(ctx.db, name, exclude_pid=ctx.player["id"]):
         return ctx.err("名字已被使用")
-    cost = 500
-    if int(ctx.player.get("gem") or 0) < cost:
-        return ctx.err("钻石不足")
-    ctx.player["gem"] = int(ctx.player["gem"]) - cost
-    ctx.player["costGem"] = int(ctx.player.get("costGem") or 0) + cost
+    is_first = ctx.player.get("name") == ctx.player.get("userName")
+    cost = 0 if is_first else 500
+    if cost > 0:
+        if int(ctx.player.get("gem") or 0) < cost:
+            return ctx.err("钻石不足")
+        ctx.player["gem"] = int(ctx.player["gem"]) - cost
+        ctx.player["costGem"] = int(ctx.player.get("costGem") or 0) + cost
     ctx.player["name"] = name
     ctx.save()
-    return ctx.ok(name=name, gem=ctx.player["gem"], costGem=ctx.player["costGem"])
+    return ctx.ok(name=name, gem=ctx.player["gem"], costGem=ctx.player.get("costGem", 0))
 
 
 @route("logic.playerHandler.signIn")

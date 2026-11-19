@@ -6,6 +6,8 @@ from core import gamedata as gd, rewards, schema, tasks
 from handlers import common
 
 _ROLE_POOL_CACHE = None
+_SOUL_BY_CLASS_CACHE = None
+_EQUIVALENT_SOULS = {1: 10, 2: 30, 3: 80, 4: 180, 5: 330}
 
 
 def _role_pool():
@@ -21,39 +23,103 @@ def _role_pool():
     return _ROLE_POOL_CACHE
 
 
+def _soul_kind_for_class(cid: int) -> int:
+    global _SOUL_BY_CLASS_CACHE
+    if _SOUL_BY_CLASS_CACHE is None:
+        _SOUL_BY_CLASS_CACHE = {
+            int(r["classId"]): int(r["kindId"])
+            for r in gd.table("soulData")
+            if isinstance(r, dict) and r.get("classId") is not None and r.get("kindId") is not None
+        }
+    return _SOUL_BY_CLASS_CACHE.get(int(cid or 0), 20001)
+
+
+def _owned_class_ids(player: dict) -> set:
+    owned = set()
+    for role in (player.get("team") or {}).get("roles", {}).values():
+        if not isinstance(role, dict):
+            continue
+        cid = role.get("classId") or (gd.role(role.get("kindId")) or {}).get("classId")
+        if cid is not None:
+            owned.add(int(cid))
+    return owned
+
+
+def _pick_draw_role(pool: list, count: int, is_gem: bool, owned_class_ids: set) -> int:
+    if not is_gem and count == 1 and 2 not in owned_class_ids:
+        return 100201
+    if is_gem and len(owned_class_ids) < 3:
+        missing = [
+            k for k in pool
+            if int((gd.role(k) or {}).get("classId") or 0) not in owned_class_ids
+        ]
+        if missing:
+            return random.choice(missing)
+    return random.choice(pool)
+
+
 def _do_gacha(ctx, count: int, is_gem: bool):
     p = ctx.player
     pool = _role_pool()
     point = p.setdefault("point", {})
+    now_ms = common.now_ms()
     if is_gem:
+        next_free = int(point.get("nextGemFreeTime") or 0)
+        if count == 1 and (next_free == 0 or now_ms >= next_free):
+            point["nextGemFreeTime"] = now_ms + 172800000
+        else:
+            point["isPayGemFirst"] = False
         point["gemTimes"] = int(point.get("gemTimes") or 0) + count
         point["dailyUseGemTimes"] = int(point.get("dailyUseGemTimes") or 0) + count
         if count >= 10:
             point["gemTenTimes"] = int(point.get("gemTenTimes") or 0) + 1
     else:
+        next_free = int(point.get("nextCoinFreeTime") or 0)
+        free_times = int(point.get("freeCoinTimes") or 0)
+        if count == 1 and free_times != 5 and (next_free == 0 or now_ms >= next_free):
+            point["freeCoinTimes"] = free_times + 1
+            point["nextCoinFreeTime"] = now_ms + 300000
+        else:
+            point["isPayCoinFirst"] = False
         point["coinTimes"] = int(point.get("coinTimes") or 0) + count
         point["dailyCoinTimes"] = int(point.get("dailyCoinTimes") or 0) + count
         if count >= 10:
             point["coinTenTimes"] = int(point.get("coinTenTimes") or 0) + 1
 
+    owned_class_ids = _owned_class_ids(p)
+    star = 2 if is_gem else 1
     new_roles = {}
     entity_map = {}
+    drop_list = []
+
     for _ in range(count):
-        kid = random.choice(pool)
-        idx, role = add_role_to_team(p, kid, level=1, star=2 if is_gem else 1)
-        new_roles[idx] = role
+        kid = _pick_draw_role(pool, count, is_gem, owned_class_ids)
+        role_row = gd.role(kid) or {}
+        cid = int(role_row.get("classId") or 0)
+        drop_list.append({"entityId": kid, "count": 1, "extra": {"star": star}})
+        if cid and cid not in owned_class_ids:
+            idx, role = add_role_to_team(p, kid, level=1, star=star)
+            new_roles[idx] = role
+            owned_class_ids.add(cid)
+        else:
+            soul_kid = _soul_kind_for_class(cid)
+            soul_cnt = _EQUIVALENT_SOULS.get(star, 10 * star)
+            add_item_to_bag(p, soul_kid, soul_cnt)
         entity_map[str(kid)] = entity_map.get(str(kid), 0) + 1
+
     schema.recalc_power(p)
     tasks.complete_daily(p, 2006)
     ctx.save()
-    return ctx.ok(
-        team=p["team"],
+
+    res_fields = {"team": {"roles": new_roles}} if new_roles else {}
+    res_fields.update(
         bag=p["bag"],
         coin=p["coin"],
         gem=p["gem"],
         point=point,
-        _temp={"entityCountMap": entity_map, "newRoles": new_roles},
+        _temp={"dropList": drop_list, "entityCountMap": entity_map, "newRoles": new_roles},
     )
+    return ctx.ok(**res_fields)
 
 
 @route("logic.pointHandler.coin")
