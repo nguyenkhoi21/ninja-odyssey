@@ -1,0 +1,744 @@
+{
+  "http": {
+    "/user/clientConfig": {
+      "inReviewPackageInfos": [],
+      "runScriptInfo": {
+        "script": "buildExt.isHideStarSign = false;buildExt.isHideStarSignMap = false;"
+      }
+    },
+    "/sdk/verifyToken": {
+      "code": 200,
+      "userName": "sample_user",
+      "accountId": "100000001"
+    },
+    "/notice.json": [
+      {
+        "title": "火影世界",
+        "textList": [
+          "欢迎大家来到火影的世界！",
+          "$集结你的忍者小队，点燃忍界之魂！ 收录上百位经典忍者卡牌，自由搭配阵容，释放炫酷忍术连击，体验策略对决的极致快感。从忍者学校到忍界大战，重温每一段热血篇章，亲手改写那些令你意难平的结局。离线挂机轻松养成，竞技场巅峰对决，与全球忍者迷一较高下。你的忍道，由你定义——现在就集结属于你的最强忍者阵容！"
+        ]
+      }
+    ],
+    "/user/login": {
+      "code": 200,
+      "token": "sample_token",
+      "uid": 55924,
+      "accountId": "100000001",
+      "atime": 1794936284711,
+      "ctime": 1794936005041,
+      "loginIp": "127.0.0.1"
+    }
+  },
+  "ws": {
+    "gate.gateHandler.queryEntry": {
+      "code": 200,
+      "host": "hykp2-yiwei.miaomuxian.cn",
+      "port": 20201
+    },
+    "close": {
+      "type": "close",
+      "target": {
+        "url": "ws://hykp2-yiwei.miaomuxian.cn:20100",
+        "URL": "ws://hykp2-yiwei.miaomuxian.cn:20100",
+        "protocol": "",
+        "binaryType": "arraybuffer",
+        "__jsb_ref_id": 85
+      }
+    },
+    "connector.entryHandler.entry": {
+      "code": 200
+    },
+    "connector.playerHandler.getPlayers": {
+      "code": 200,
+      "players": [
+        {
+          "_id": 178471,
+          "id": 178471,
+          "name": "210f8c40e39f9fb1d14e7ef047846bcb",
+          "userId": 55924,
+          "serverId": 154,
+          "oldServerId": 154
+        }
+      ]
+    },
+    "logic.playerHandler.incOnlineTime": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.playerHandler.incOnlineTime"
+      }
+    },
+    "logic.playerHandler.rename": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.playerHandler.rename"
+      },
+      "name": "Khooiii"
+    },
+    "logic.smapHandler.beginSmap": {
+      "code": 200,
+      "_temp": {
+        "showEntityIdsMap": {},
+        "route": "logic.smapHandler.beginSmap"
+      }
+    },
+    "logic.playerHandler.useGiftCode": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "120": 10,
+          "341": 10
+        },
+        "route": "logic.playerHandler.useGiftCode"
+      },
+      "bag": {
+        "items": {
+          "17": {
+            "kindId": 120,
+            "count": 110
+          },
+          "24": {
+            "kindId": 341,
+            "count": 10
+          }
+        },
+        "lastIdx": 24
+      }
+    },
+    "logic.playerHandler.receiveActivityAward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "2": 6480
+        },
+        "route": "logic.playerHandler.receiveActivityAward"
+      },
+      "bag": {
+        "items": {
+          "29": {
+            "kindId": 2,
+            "count": 6480
+          }
+        },
+        "lastIdx": 29
+      },
+      "activity": {
+        "map": {
+          "login_2": {
+            "name": "login_2",
+            "desc": "每日免费代金券",
+            "rewards": [
+              {
+                "desc": "每日刷新",
+                "needMap": {
+                  "loginDays": 1
+                },
+                "dropListDesc": "2x6480",
+                "status": 3
+              }
+            ],
+            "beginDay": 0,
+            "durationDays": 1,
+            "delayDays": 0,
+            "isRepeat": true,
+            "start_time": 1794931200000,
+            "end_time": 1795017600000,
+            "reachMap": {
+              "loginDays": 1
+            },
+            "isSuccess": false,
+            "needKeys": [
+              "loginDays"
+            ]
+          }
+        }
+      }
+    },
+    "logic.smapHandler.receiveBmapAward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "101": 10000
+        },
+        "route": "logic.smapHandler.receiveBmapAward"
+      },
+      "coin": 9281000,
+      "bmapBoxReceivedMap": {
+        "101": {
+          "6": true
+        },
+        "201": {
+          "6": true
+        }
+      }
+    },
+    "logic.playerHandler.signIn": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "202": 2
+        },
+        "isDouble": false,
+        "route": "logic.playerHandler.signIn"
+      },
+      "bag": {
+        "items": {
+          "34": {
+            "kindId": 202,
+            "count": 2
+          }
+        },
+        "lastIdx": 34
+      },
+      "signInTime": 1794936684042,
+      "signInDays": 1
+    },
+    "logic.playerHandler.costTopUpPoint": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.playerHandler.costTopUpPoint"
+      },
+      "bag": {
+        "items": {
+          "29": {
+            "kindId": 2,
+            "count": 5832
+          }
+        },
+        "lastIdx": 37
+      },
+      "dailyTopUpMoney": 648,
+      "vip": {
+        "topUpMoney": 648
+      }
+    },
+    "logic.playerHandler.receiveTaskAward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "100": 50,
+          "42504": 2,
+          "42604": 2,
+          "49904": 4
+        },
+        "route": "logic.playerHandler.receiveTaskAward"
+      },
+      "bag": {
+        "items": {
+          "43": {
+            "kindId": 49904,
+            "count": 75
+          },
+          "161": {
+            "kindId": 42504,
+            "count": 8
+          },
+          "162": {
+            "kindId": 42604,
+            "count": 8
+          }
+        },
+        "lastIdx": 183
+      },
+      "experience": 85,
+      "task": {
+        "main": {
+          "1": {
+            "taskId": 44,
+            "isComplete": false,
+            "show": "0/1",
+            "preRankId": 43
+          }
+        }
+      }
+    },
+    "logic.pointHandler.coin": {
+      "code": 200,
+      "_temp": {
+        "dropList": [
+          {
+            "entityId": 20003,
+            "count": 1,
+            "extra": 0
+          }
+        ],
+        "route": "logic.pointHandler.coin"
+      },
+      "bag": {
+        "items": {
+          "60": {
+            "kindId": 20003,
+            "count": 161
+          }
+        },
+        "lastIdx": 168
+      },
+      "point": {
+        "nextCoinFreeTime": 1795015444380,
+        "nextGemFreeTime": 1795109171948,
+        "coinTimes": 4,
+        "gemTimes": 101,
+        "coinTenTimes": 0,
+        "gemTenTimes": 10,
+        "freeCoinTimes": 4,
+        "dailyCoinTimes": 4,
+        "dailyUseGemTimes": 1,
+        "isPayCoinFirst": true,
+        "isPayGemFirst": true
+      }
+    },
+    "logic.playerHandler.selectBoxReward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "80601": 20
+        },
+        "route": "logic.playerHandler.selectBoxReward"
+      },
+      "bag": {
+        "items": {
+          "26": null,
+          "91": {
+            "kindId": 80601,
+            "count": 20
+          }
+        },
+        "lastIdx": 91
+      }
+    },
+    "logic.bagHandler.composeArtifact": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.bagHandler.composeArtifact"
+      },
+      "bag": {
+        "items": {
+          "91": null,
+          "95": {
+            "kindId": 70601,
+            "count": 1,
+            "star": 1,
+            "increaseTimes": 0
+          }
+        },
+        "lastIdx": 95
+      },
+      "coin": 8675300
+    },
+    "logic.playerHandler.useItem": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.playerHandler.useItem"
+      },
+      "bag": {
+        "items": {
+          "164": null
+        },
+        "lastIdx": 165
+      },
+      "honourPoint": 23,
+      "titleInfoMap": {
+        "481": {
+          "imgId": 481,
+          "expireTime": -1
+        }
+      }
+    },
+    "logic.bagHandler.sell": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.bagHandler.sell"
+      },
+      "bag": {
+        "items": {
+          "166": null
+        },
+        "lastIdx": 166
+      },
+      "coin": 15859480
+    },
+    "logic.friendHandler.myFriendList": {
+      "code": 200,
+      "friend": {
+        "infoMap": {
+          "177532": {
+            "playerId": 177532,
+            "status": 2,
+            "isGived": true,
+            "giftStatus": 1
+          }
+        },
+        "actionPointReceiveTimes": 0,
+        "count": 1
+      },
+      "_temp": {
+        "list": [
+          {
+            "playerId": 177532,
+            "playerName": "Letche",
+            "playerLevel": 50,
+            "playerPhotoInfo": {
+              "photoImgId": 1003,
+              "shipImgId": 900
+            },
+            "serverId": 151,
+            "atime": 1794941618162
+          }
+        ],
+        "route": "logic.friendHandler.myFriendList"
+      }
+    },
+    "logic.friendHandler.receiveGiftAll": {
+      "code": 500,
+      "msg": "没有行动力可领取"
+    },
+    "logic.friendHandler.giveGiftAll": {
+      "code": 500,
+      "msg": "已经全部赠送过了"
+    },
+    "logic.arenaHandler.info": {
+      "code": 200,
+      "_temp": {
+        "rank": 10001,
+        "route": "logic.arenaHandler.info"
+      }
+    },
+    "logic.arenaHandler.match": {
+      "code": 200,
+      "_temp": {
+        "smaller": {
+          "playerId": 178376,
+          "playerName": "直子·黑木",
+          "playerLevel": 38,
+          "playerPhotoInfo": {
+            "photoImgId": 1004,
+            "shipImgId": 900
+          },
+          "totalPower": 39733,
+          "rank": 75
+        },
+        "middle": {
+          "playerId": 136,
+          "playerName": "洋子·入江",
+          "playerLevel": 30,
+          "playerPhotoInfo": {
+            "photoImgId": 1017,
+            "shipImgId": 900
+          },
+          "totalPower": 22550,
+          "rank": 136
+        },
+        "larger": {
+          "playerId": 150,
+          "playerName": "丽子·江角",
+          "playerLevel": 30,
+          "playerPhotoInfo": {
+            "photoImgId": 1009,
+            "shipImgId": 900
+          },
+          "totalPower": 22550,
+          "rank": 150
+        },
+        "route": "logic.arenaHandler.match"
+      }
+    },
+    "logic.arenaHandler.reportList": {
+      "code": 200,
+      "_temp": {
+        "reportList": [],
+        "route": "logic.arenaHandler.reportList"
+      }
+    },
+    "logic.arenaHandler.setDefenseTeamIndexs": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.arenaHandler.setDefenseTeamIndexs"
+      },
+      "arena": {
+        "topRank": 10001,
+        "winTimes": 0,
+        "challengeTimes": 0,
+        "nextChallengeTime": 0,
+        "defenseTeamIndexs": [
+          "5",
+          "7",
+          "6",
+          "3",
+          "12"
+        ],
+        "defenseShipIndexs": [],
+        "maxChallengeTimes": 5,
+        "remainingChallengeTimes": 5
+      }
+    },
+    "logic.teamHandler.upgradeRoleSkill": {
+      "code": 500,
+      "msg": "技能等级不能超过忍者等级"
+    },
+    "logic.playerHandler.receiveHonourReward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "481": 1,
+          "523": 1
+        },
+        "route": "logic.playerHandler.receiveHonourReward"
+      },
+      "bag": {
+        "items": {
+          "164": {
+            "kindId": 481,
+            "count": 1
+          },
+          "165": {
+            "kindId": 523,
+            "count": 1
+          }
+        },
+        "lastIdx": 165
+      },
+      "honourReceivedMap": {
+        "1": true
+      }
+    },
+    "logic.mailHandler.receiveAll": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "101": 53000,
+          "102": 810,
+          "103": 480,
+          "107": 100,
+          "115": 500,
+          "20002": 2,
+          "21002": 1
+        },
+        "route": "logic.mailHandler.receiveAll"
+      },
+      "bag": {
+        "items": {
+          "31": {
+            "kindId": 115,
+            "count": 600
+          },
+          "54": {
+            "kindId": 21002,
+            "count": 160
+          },
+          "112": {
+            "kindId": 20002,
+            "count": 92
+          },
+          "167": {
+            "kindId": 103,
+            "count": 480
+          },
+          "168": {
+            "kindId": 107,
+            "count": 100
+          }
+        },
+        "lastIdx": 168
+      },
+      "coin": 15952880,
+      "gem": 107048
+    },
+    "logic.guildBattleHandler.openInfo": {
+      "code": 200,
+      "_temp": {
+        "openInfo": {
+          "openTime": 1795093800000,
+          "isOpen": false
+        },
+        "route": "logic.guildBattleHandler.openInfo"
+      }
+    },
+    "logic.guildHandler.worship": {
+      "code": 500,
+      "msg": "今日已膜拜过了"
+    },
+    "logic.newGuildBattleHandler.openInfo": {
+      "code": 200,
+      "_temp": {
+        "openInfo": {
+          "openTime": 1795086000000,
+          "isOpen": false,
+          "isReady": false,
+          "isHaveTarget": null,
+          "preBattleResult": {
+            "win": {
+              "guildId": 11187,
+              "serverId": 154,
+              "guildName": "oke",
+              "guildLevel": 1,
+              "winTimes": 0,
+              "badgeId": 1,
+              "memberCount": 19,
+              "score": 162
+            },
+            "lose": {
+              "guildId": 11190,
+              "serverId": 155,
+              "guildName": "Asuna",
+              "guildLevel": 1,
+              "winTimes": 0,
+              "badgeId": 6,
+              "memberCount": 10,
+              "score": 110
+            }
+          },
+          "defenseTeamInfo": {
+            "teamIndexs": [],
+            "shipIndexs": []
+          }
+        },
+        "route": "logic.newGuildBattleHandler.openInfo"
+      }
+    },
+    "logic.guildHandler.list": {
+      "code": 200,
+      "_temp": {
+        "_decodeKeys": [
+          "list"
+        ],
+        "list": [
+          {
+            "id": 11182,
+            "name": "KONOHABR",
+            "badgeId": 10,
+            "chairmanName": "Horus",
+            "activePoint": 11745,
+            "joinLevelLimit": 10,
+            "joinRequireType": 1,
+            "menberCount": 26,
+            "level": 2,
+            "maxMemberCount": 26,
+            "rank": 1
+          },
+          {
+            "id": 11187,
+            "name": "oke",
+            "badgeId": 1,
+            "chairmanName": "oke",
+            "activePoint": 7805,
+            "joinLevelLimit": 1,
+            "joinRequireType": 1,
+            "menberCount": 21,
+            "level": 1,
+            "maxMemberCount": 25,
+            "rank": 2
+          }
+        ],
+        "route": "logic.guildHandler.list"
+      }
+    },
+    "logic.endlessHandler.begin": {
+      "code": 200,
+      "_temp": {
+        "route": "logic.endlessHandler.begin"
+      }
+    },
+    "logic.playerHandler.receiveTaskActiveAward": {
+      "code": 200,
+      "_temp": {
+        "entityCountMap": {
+          "98": 50,
+          "9030": 2,
+          "21001": 10,
+          "49907": 5,
+          "49912": 5
+        },
+        "route": "logic.playerHandler.receiveTaskActiveAward"
+      },
+      "bag": {
+        "items": {
+          "42": {
+            "kindId": 21001,
+            "count": 65
+          },
+          "50": {
+            "kindId": 49907,
+            "count": 145
+          },
+          "65": {
+            "kindId": 49912,
+            "count": 125
+          },
+          "171": {
+            "kindId": 9030,
+            "count": 2
+          }
+        },
+        "lastIdx": 171
+      },
+      "task": {
+        "receivedPointMap": {
+          "daily": {
+            "50": true,
+            "100": true,
+            "150": true
+          }
+        }
+      },
+      "vip": {
+        "topUpGem": 19330,
+        "giftGem": 1050
+      }
+    },
+    "logic.playerHandler.dreamRoll": {
+      "code": 200,
+      "_temp": {
+        "dropList": [
+          {
+            "entityId": 20003,
+            "count": 10
+          }
+        ],
+        "event": 0,
+        "point": 6,
+        "route": "logic.playerHandler.dreamRoll"
+      },
+      "bag": {
+        "items": {
+          "41": null,
+          "60": {
+            "kindId": 20003,
+            "count": 171
+          }
+        },
+        "lastIdx": 171
+      },
+      "activity": {
+        "dream": {
+          "curPos": 6,
+          "logs": [
+            {
+              "time": 1795015398982,
+              "point": 6,
+              "dropDesc": "20003x10"
+            }
+          ]
+        }
+      }
+    },
+    "logic.playerHandler.rollDial": {
+      "code": 200,
+      "_temp": {
+        "dropList": [
+          {
+            "entityId": 102,
+            "count": 500
+          }
+        ],
+        "route": "logic.playerHandler.rollDial"
+      },
+      "bag": {
+        "items": {
+          "169": null
+        },
+        "lastIdx": 173
+      },
+      "gem": 107698
+    }
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: naruto-odysses-server
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py --single-port
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_TABLE
+        value: players
+      - key: SUPABASE_ROW_ID
+        value: NARUTO_ODYSSES_STATE

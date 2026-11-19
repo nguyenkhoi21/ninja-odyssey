@@ -1,0 +1,6 @@
+/.env
+__pycache__/
+*.pyc
+server_traffic.jsonl
+local_db.json
+captured_packets.json
